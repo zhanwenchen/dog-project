@@ -12108,6 +12108,7 @@ dog performance is 12 percent
 <p><strong>Question 2:</strong> This algorithmic choice necessitates that we communicate to the user that we accept human images only when they provide a clear view of a face (otherwise, we risk having unneccessarily frustrated users!). In your opinion, is this a reasonable expectation to pose on the user? If not, can you think of a way to detect humans in images that does not necessitate an image with a clearly presented face?</p>
 <p><strong>Answer:</strong></p>
 <p>This assumption makes no sense because at some level, the point of a face detector is to tell whether the given image is human. If the user doesn't have the label before hand, this then becomes a trivial problem in production. Instead, it might be necessary to segment the image first for potential humans and then run face detection on each segment.</p>
+<p>To answer the question "whether Haar cascades for face detection are an appropriate technique for human detection," Haar isn't a very good algorithm for production primarily because it does not generalize well to variations such as glasses and poses <a href="http://answers.opencv.org/question/95542/problems-with-using-haar-cascade/">example issue</a>. The algorithm needs to be trained for each known variation, while CNNs can provide more flexibility. Furthermore, CNNs tend to have better performance than Haar cascades <a href="https://dzone.com/articles/cnn-vs-cascade-classifiers-for-object-detection">benchmarks</a>.</p>
 
 </div>
 </div>
@@ -12116,76 +12117,23 @@ dog performance is 12 percent
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<hr>
-<p><a id='step2'></a></p>
-<h2 id="Step-2:-Detect-Dogs">Step 2: Detect Dogs<a class="anchor-link" href="#Step-2:-Detect-Dogs">&#182;</a></h2><p>In this section, we use a pre-trained <a href="http://ethereon.github.io/netscope/#/gist/db945b393d40bfa26006">ResNet-50</a> model to detect dogs in images.  Our first line of code downloads the ResNet-50 model, along with weights that have been trained on <a href="http://www.image-net.org/">ImageNet</a>, a very large, very popular dataset used for image classification and other vision tasks.  ImageNet contains over 10 million URLs, each linking to an image containing an object from one of <a href="https://gist.github.com/yrevar/942d3a0ac09ec9e5eb3a">1000 categories</a>.  Given an image, this pre-trained ResNet-50 model returns a prediction (derived from the available categories in ImageNet) for the object that is contained in the image.</p>
+<h2 id="from-keras.preprocessing-import-image">from keras.preprocessing import image<a class="anchor-link" href="#from-keras.preprocessing-import-image">&#182;</a></h2><p>from tqdm import tqdm</p>
+<p>def path_to_tensor(img_path):</p>
+
+<pre><code># loads RGB image as PIL.Image.Image type
+img = image.load_img(img_path, target_size=(224, 224))
+# convert PIL.Image.Image type to 3D tensor with shape (224, 224, 3)
+x = image.img_to_array(img)
+# convert 3D tensor to 4D tensor with shape (1, 224, 224, 3) and return 4D tensor
+return np.expand_dims(x, axis=0)
+
+</code></pre>
+<p>def paths_to_tensor(img_paths):
+    list_of_tensors = [path_to_tensor(img_path) for img_path in tqdm(img_paths)]
+    return np.vstack(list_of_tensors)</p>
 
 </div>
 </div>
-</div>
-<div class="cell border-box-sizing code_cell rendered">
-<div class="input">
-<div class="prompt input_prompt">In&nbsp;[7]:</div>
-<div class="inner_cell">
-    <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">keras.applications.resnet50</span> <span class="k">import</span> <span class="n">ResNet50</span>
-
-<span class="c1"># define ResNet50 model</span>
-<span class="n">ResNet50_model</span> <span class="o">=</span> <span class="n">ResNet50</span><span class="p">(</span><span class="n">weights</span><span class="o">=</span><span class="s1">&#39;imagenet&#39;</span><span class="p">)</span>
-</pre></div>
-
-</div>
-</div>
-</div>
-
-</div>
-<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
-</div>
-<div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<h3 id="Pre-process-the-Data">Pre-process the Data<a class="anchor-link" href="#Pre-process-the-Data">&#182;</a></h3><p>When using TensorFlow as backend, Keras CNNs require a 4D array (which we'll also refer to as a 4D tensor) as input, with shape</p>
-<p>$$
-(\text{nb_samples}, \text{rows}, \text{columns}, \text{channels}),
-$$</p>
-<p>where <code>nb_samples</code> corresponds to the total number of images (or samples), and <code>rows</code>, <code>columns</code>, and <code>channels</code> correspond to the number of rows, columns, and channels for each image, respectively.</p>
-<p>The <code>path_to_tensor</code> function below takes a string-valued file path to a color image as input and returns a 4D tensor suitable for supplying to a Keras CNN.  The function first loads the image and resizes it to a square image that is $224 \times 224$ pixels.  Next, the image is converted to an array, which is then resized to a 4D tensor.  In this case, since we are working with color images, each image has three channels.  Likewise, since we are processing a single image (or sample), the returned tensor will always have shape</p>
-<p>$$
-(1, 224, 224, 3).
-$$</p>
-<p>The <code>paths_to_tensor</code> function takes a numpy array of string-valued image paths as input and returns a 4D tensor with shape</p>
-<p>$$
-(\text{nb_samples}, 224, 224, 3).
-$$</p>
-<p>Here, <code>nb_samples</code> is the number of samples, or number of images, in the supplied array of image paths.  It is best to think of <code>nb_samples</code> as the number of 3D tensors (where each 3D tensor corresponds to a different image) in your dataset!</p>
-
-</div>
-</div>
-</div>
-<div class="cell border-box-sizing code_cell rendered">
-<div class="input">
-<div class="prompt input_prompt">In&nbsp;[8]:</div>
-<div class="inner_cell">
-    <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">keras.preprocessing</span> <span class="k">import</span> <span class="n">image</span>                  
-<span class="kn">from</span> <span class="nn">tqdm</span> <span class="k">import</span> <span class="n">tqdm</span>
-
-<span class="k">def</span> <span class="nf">path_to_tensor</span><span class="p">(</span><span class="n">img_path</span><span class="p">):</span>
-    <span class="c1"># loads RGB image as PIL.Image.Image type</span>
-    <span class="n">img</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">load_img</span><span class="p">(</span><span class="n">img_path</span><span class="p">,</span> <span class="n">target_size</span><span class="o">=</span><span class="p">(</span><span class="mi">224</span><span class="p">,</span> <span class="mi">224</span><span class="p">))</span>
-    <span class="c1"># convert PIL.Image.Image type to 3D tensor with shape (224, 224, 3)</span>
-    <span class="n">x</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">img_to_array</span><span class="p">(</span><span class="n">img</span><span class="p">)</span>
-    <span class="c1"># convert 3D tensor to 4D tensor with shape (1, 224, 224, 3) and return 4D tensor</span>
-    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-
-<span class="k">def</span> <span class="nf">paths_to_tensor</span><span class="p">(</span><span class="n">img_paths</span><span class="p">):</span>
-    <span class="n">list_of_tensors</span> <span class="o">=</span> <span class="p">[</span><span class="n">path_to_tensor</span><span class="p">(</span><span class="n">img_path</span><span class="p">)</span> <span class="k">for</span> <span class="n">img_path</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">img_paths</span><span class="p">)]</span>
-    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">list_of_tensors</span><span class="p">)</span>
-</pre></div>
-
-</div>
-</div>
-</div>
-
 </div>
 <div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
@@ -13412,6 +13360,29 @@ Epoch 00020: val_loss did not improve from 0.49818
 </div>
 </div>
 
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Extra-Question:-Why-did-your-chosen-architecture-with-transfer-learning-work,-and-earlier-attempts-using-a-custom-neural-net-not-work-nearly-as-well?-What-is-so-special-about-transfer-learning?">Extra Question: Why did your chosen architecture with transfer learning work, and earlier attempts using a custom neural net not work nearly as well? What is so special about transfer learning?<a class="anchor-link" href="#Extra-Question:-Why-did-your-chosen-architecture-with-transfer-learning-work,-and-earlier-attempts-using-a-custom-neural-net-not-work-nearly-as-well?-What-is-so-special-about-transfer-learning?">&#182;</a></h1>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Answer: according to <a href="https://towardsdatascience.com/transfer-learning-946518f95666">this TDD article</a>, the benefits of transfer learning include</p>
+<ul>
+<li>faster training</li>
+<li>better performances, and</li>
+<li>less data required</li>
+</ul>
+<p>It is possible that while it is possible to achieve acceptable results with a custom neural net, it would take many more epochs and more training images to do that. Meanwhile, based on <a href="http://image-net.org/challenges/LSVRC/2014/browse-synsets">the ImageNet labels</a>, the bottlenecks from ImageNet have already been trained on dogs, making them suitable for our problem</p>
+
+</div>
+</div>
 </div>
 <div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div>
